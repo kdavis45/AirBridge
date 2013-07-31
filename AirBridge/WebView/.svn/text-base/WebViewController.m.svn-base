@@ -1,0 +1,227 @@
+//
+//  HelpViewController.m
+//  iBoom
+//
+//  Created by Brian Stormont on 1/30/09.
+//  Copyright 2009 Stormy Productions. All rights reserved.
+//
+
+#import "WebViewController.h"
+#import "iRadioSuiteAppDelegate.h"
+#import "reachability.h"
+
+@implementation WebViewController
+
+/*
+// The designated initializer. Override to perform setup that is required before the view is loaded.
+- (id)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil {
+    if (self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil]) {
+        // Custom initialization
+    }
+    return self;
+}
+*/
+
+/*
+// Implement loadView to create a view hierarchy programmatically, without using a nib.
+- (void)loadView {
+}
+*/
+
+
+// Implement viewDidLoad to do additional setup after loading the view, typically from a nib.
+- (void)viewDidAppear: (BOOL)animated {
+    [super viewDidAppear:animated];
+}
+
+
+
+- (void) loadBrowser: (NSURL *) url
+{
+	// Check for network connectivity
+	if (isNetReachable(@"0.0.0.0")){
+		
+		webView.delegate = self;
+		
+		[webView loadRequest:[NSURLRequest requestWithURL:url]];
+				
+#if FORCED_ROTATION
+		// Set the status bar orientation
+		[[UIApplication sharedApplication] setStatusBarOrientation: UIInterfaceOrientationLandscapeRight  animated: YES];
+#endif
+		
+		// Disable forward button
+		webForward.enabled = NO;
+	}else{
+		[self showNoNetworkAlert];	
+	}
+}
+
+- (IBAction) browseBack: (id) sender
+{
+	if ([webView canGoBack]){
+		[webView goBack];
+		// Enable the forward button
+		webForward.enabled = YES;
+	}else{
+
+		iRadioSuiteAppDelegate *appDelegate = (iRadioSuiteAppDelegate *)[[UIApplication sharedApplication] delegate];
+		[[UIDevice currentDevice] setOrientation:UIInterfaceOrientationPortrait];			
+		[appDelegate dismissWebView];
+	}
+	
+}
+
+- (IBAction) browseForward: (id) sender
+{
+	if ([webView canGoForward]){
+		[webView goForward];
+		
+		if (![webView canGoForward]){
+			// disable the forward button
+			webForward.enabled = NO;
+		}
+	}else{
+		webForward.enabled = NO;
+	}	
+	
+}
+
+- (IBAction) stopOrReLoadWeb: (id) sender
+{
+	// NOTE: stop is not implemented.  Only reload works.
+	/*
+	 if ([webView isLoading]){
+	 [webView stopLoading];
+	 }else*/{
+		 [webView reload];
+	 }
+}
+
+
+- (void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex
+{
+	if (buttonIndex == 0){	
+		[[UIApplication sharedApplication] openURL:[[webView request] URL]];
+	}
+	
+	[actionSheet release];
+}
+
+- (IBAction) launchSafari: (id) sender{
+	
+	UIActionSheet *menu = [[UIActionSheet alloc]
+						   initWithTitle: nil
+						   delegate:self
+						   cancelButtonTitle:@"Cancel"
+						   destructiveButtonTitle:nil
+						   otherButtonTitles:@"View in Safari", nil];
+	[menu showFromToolbar:toolBar];
+}
+
+
+
+- (void) showNoNetworkAlert
+{
+	UIAlertView *baseAlert = [[UIAlertView alloc] 
+							  initWithTitle:@"No Network" message:@"A network connection is required.  Please verifiy your network settings and try again." 
+							  delegate:nil cancelButtonTitle:nil 
+							  otherButtonTitles:@"OK", nil];	
+	[baseAlert show];
+	[baseAlert release];
+}
+
+//
+#pragma mark UIWebView delegate methods
+//
+
+- (void)webViewDidStartLoad:(UIWebView *)webView
+{
+    // starting the load, show the activity indicator in the status bar
+    [UIApplication sharedApplication].isNetworkActivityIndicatorVisible = YES;
+	[busyWebIcon startAnimating];				
+	
+}
+
+- (void)webViewDidFinishLoad:(UIWebView *)webView
+{
+    // finished loading, hide the activity indicator in the status bar
+    [UIApplication sharedApplication].isNetworkActivityIndicatorVisible = NO;
+	[busyWebIcon stopAnimating];	
+	
+	if (![webView canGoForward]){
+		// disable the forward button
+		webForward.enabled = NO;
+	}
+}
+
+- (void)webView:(UIWebView *)webView didFailLoadWithError:(NSError *)error
+{
+    // load error, hide the activity indicator in the status bar
+    [UIApplication sharedApplication].isNetworkActivityIndicatorVisible = NO;
+	[busyWebIcon stopAnimating];				
+	
+#if 0  // This code doesn't seem to work!
+	
+    // report the error inside the webview
+    NSString* errorString = [NSString stringWithFormat:
+                             @"<html><center><font size=+5 color='red'>An error occurred:<br>%@</font></center></html>",
+                             error.localizedDescription];
+    [webView loadHTMLString:errorString baseURL:nil];
+#endif 
+}
+
+- (BOOL)webView:(UIWebView *)webView
+shouldStartLoadWithRequest:(NSURLRequest *)request
+ navigationType:(UIWebViewNavigationType)navigationType
+{
+	
+	// Check for network connectivity
+	if (isNetReachable(@"0.0.0.0")){
+		
+		return YES;
+	}else{
+		[self showNoNetworkAlert];		
+		return NO;
+	}
+}
+
+// Override to allow orientations other than the default portrait orientation.
+- (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation {
+    // Return YES for supported orientations
+    return (YES/*interfaceOrientation == UIInterfaceOrientationPortrait*/);
+}
+
+
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning]; // Releases the view if it doesn't have a superview
+    // Release anything that's not essential, such as cached data
+}
+
+-(IBAction)back: (id)sender
+{
+	iRadioSuiteAppDelegate *appDelegate = (iRadioSuiteAppDelegate *)[[UIApplication sharedApplication] delegate];
+	
+	//TODO:  Should this navigate back or just dismiss and clear the view so next time it starts with the help screen again?
+
+	if ([webView canGoBack]){
+		[webView goBack];
+	}else{	
+		[[UIDevice currentDevice] setOrientation:UIInterfaceOrientationPortrait];			
+		[appDelegate dismissWebView];
+	}
+}
+
+-(IBAction)done: (id)sender
+{
+	iRadioSuiteAppDelegate *appDelegate = (iRadioSuiteAppDelegate *)[[UIApplication sharedApplication] delegate];
+	[[UIDevice currentDevice] setOrientation:UIInterfaceOrientationPortrait];			
+	[appDelegate dismissWebView];
+}
+
+- (void)dealloc {
+    [super dealloc];
+}
+
+
+@end
